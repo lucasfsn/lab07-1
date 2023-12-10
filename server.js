@@ -18,23 +18,33 @@ connectToDb(err => {
   db = getDb();
 });
 
-app.get('/products/:operation?/:field?/:value?', async (req, res) => {
+app.get('/products', async (req, res) => {
   try {
     const col = await db.collection('products');
 
-    const { operation, field, value } = req.params;
-
-    if (!operation || !field || !value)
-      return res.json(await col.find().toArray());
+    const filterFields = req.query.filterFields
+      ? req.query.filterFields.split(',')
+      : [];
+    const filterValues = req.query.filterValues
+      ? req.query.filterValues.split(',')
+      : [];
+    const sortFields = req.query.sortFields
+      ? req.query.sortFields.split(',')
+      : [];
+    const sortDirections = req.query.sortDirections
+      ? req.query.sortDirections.split(',')
+      : [];
 
     let filter = {};
-    let sort = {};
+    filterFields.forEach((field, index) => {
+      const value = filterValues[index];
+      filter[field] = isNaN(value) ? value : Number(value);
+    });
 
-    if (operation === 'filter') {
-      filter[field] = value;
-    } else {
-      sort[field] = value === 'desc' ? -1 : 1;
-    }
+    let sort = {};
+    sortFields.forEach((field, index) => {
+      sort[field] = sortDirections[index] === 'desc' ? -1 : 1;
+    });
 
     const result = await col.find(filter).sort(sort).toArray();
     res.json(result);
@@ -45,13 +55,15 @@ app.get('/products/:operation?/:field?/:value?', async (req, res) => {
 
 app.post('/products', async (req, res) => {
   try {
+    const { name, price, description, quantity, unit } = req.body;
+
     const col = await db.collection('products');
 
-    const exist = await col.findOne({ name: req.body.name });
+    const exist = await col.findOne({ name: name });
     if (exist)
       return res.status(400).json({ message: 'Product already exists.' });
 
-    await col.insertOne(req.body);
+    await col.insertOne({ name, price, description, quantity, unit });
 
     res.json({ message: 'Product has been added.' });
   } catch (err) {
@@ -86,30 +98,22 @@ app.delete('/products/:id', async (req, res) => {
     if (!exist) return res.status(400).json({ message: 'Product not found.' });
 
     const deleted = await col.deleteOne({ _id: new ObjectId(id) });
+    if (deleted.deletedCount === 0)
+      return res.status(400).json({ message: 'Failed to delete the product.' });
 
-    if (deleted.deletedCount === 1)
-      return res.json({ message: 'Product has been deleted.' });
-
-    return res.status(400).json({ message: 'Failed to delete product.' });
+    res.json({ message: 'Product deleted successfully.' });
   } catch (err) {
     console.error(err);
     res.status(400).json({ message: 'Found an error.' });
   }
 });
 
-app.get('/report/:name', async (req, res) => {
+app.get('/report', async (req, res) => {
   try {
     const col = await db.collection('products');
-    const { name } = req.params;
-
-    const exist = await col.findOne({ name: name });
-    if (!exist) return res.status(400).json({ message: 'Product not found.' });
 
     const result = await col
       .aggregate([
-        {
-          $match: { name: name },
-        },
         {
           $group: {
             _id: '$name',
