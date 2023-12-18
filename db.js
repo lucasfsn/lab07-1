@@ -1,10 +1,11 @@
 const { MongoClient } = require('mongodb');
+require('dotenv').config();
 
 let dbConnection;
 
 exports.connectToDb = async cb => {
   try {
-    const client = await MongoClient.connect(process.env.MONGO_URI);
+    const client = await MongoClient.connect(process.env.MONGODB_URI);
 
     dbConnection = client.db();
 

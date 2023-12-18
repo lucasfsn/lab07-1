@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { connectToDb, getDb } = require('./db');
 const ObjectId = require('mongodb').ObjectId;
+require('dotenv').config();
 
 const app = express();
 
